@@ -36,10 +36,22 @@ def perceptron(points, function, max_epoch = 1000, learning_rate = 0.01):
 points = [(random.uniform(-10, 10), random.uniform(-10, 10)) for _ in range(100)]
 w1, w2, b = perceptron(points, target_line) # nevyjde to přesně, pokud zvýším počet bodů, tak to je lepší
 
+def perceptron_predict(x, y, w1, w2, b):
+    z = w1 * x + w2 * y + b
+    return 1 if z > 0 else -1
+
 print("-" * 30)
 print("Nalezené hodnoty:")
 print(f"Váha 1 (pro x): {w1:.4f}")
 print(f"Váha 2 (pro y): {w2:.4f}")
 print(f"Bias: {b:.4f}")
 
+
+points = [(random.uniform(-10, 10), random.uniform(-10, 10)) for _ in range(100)]
+
+predict_results = [perceptron_predict(p[0], p[1], w1, w2, b) for p in points]
+
+labels = [1 if p[1] > target_line(p[0]) else -1 for p in points]
+accuracy = sum(1 for p, l in zip(predict_results, labels) if p == l) / len(labels)
+print(f"Přesnost na nových datech: {accuracy:.2%}")
 visualization.plot_results(points, w1, w2, b, target_line)
