@@ -57,7 +57,8 @@ def plot_results(points, w1, w2, b, line_func):
 def plot_xor(mlp, xor_data, losses):
     fig = make_subplots(rows=1, cols=2,
                         subplot_titles=('Rozhodovací plocha MLP pro XOR',
-                                        'Průběh chyby při tréninku'))
+                                        'Průběh chyby při tréninku'),
+                        horizontal_spacing=0.15)
 
     # 1) Rozhodovací plocha
     resolution = 100
@@ -75,8 +76,8 @@ def plot_xor(mlp, xor_data, losses):
 
     fig.add_trace(go.Heatmap(
         z=grid_arr, x=xs, y=ys,
-        colorscale='RdYlBu', zmin=0, zmax=1,
-        colorbar=dict(title='Výstup sítě', x=0.45),
+        colorscale='RdYlBu_r', zmin=0, zmax=1,
+        colorbar=dict(title='Výstup sítě', x=0.42),
         showscale=True
     ), row=1, col=1)
 

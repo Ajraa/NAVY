@@ -6,7 +6,7 @@ import visualization
 # --- Aktivační funkce ---
 
 def sigmoid(x):
-    # Oříznutí aby nedošlo k přetečení
+    # oříznutí aby nedošlo k přetečení
     x = max(-500, min(500, x))
     return 1 / (1 + math.exp(-x))
 
@@ -42,13 +42,13 @@ class MLP:
         """Dopředný průchod sítí."""
         inputs = [x, y]
 
-        # Skrytá vrstva
+        # skrytá vrstva
         self.hidden_outputs = []
         for i in range(len(self.w_hidden)):
             z = sum(w * inp for w, inp in zip(self.w_hidden[i], inputs)) + self.b_hidden[i]
             self.hidden_outputs.append(sigmoid(z))
 
-        # Výstupní vrstva
+        # výstupní vrstva
         z_out = sum(w * h for w, h in zip(self.w_output, self.hidden_outputs)) + self.b_output
         self.output = sigmoid(z_out)
 
@@ -58,24 +58,24 @@ class MLP:
         """Jeden krok backpropagation."""
         inputs = [x, y]
 
-        # --- Dopředný průchod ---
+        # dopředný průchod
         prediction = self.forward(x, y)
 
-        # --- Zpětný průchod (backpropagation) ---
+        # zpětný průchod (backpropagation)
 
-        # Chyba na výstupu
+        # chyba na výstupu
         output_error = target - prediction
         # delta říká, o kolik a jakým směrem upravit váhy skryté vrstvy
         output_delta = output_error * sigmoid_derivative(self.output)
 
-        # Chyba na skryté vrstvě
+        # chyba na skryté vrstvě
         hidden_deltas = [] 
         for i in range(len(self.w_hidden)):
             error = self.w_output[i] * output_delta
             delta = error * sigmoid_derivative(self.hidden_outputs[i])
             hidden_deltas.append(delta)
 
-        # --- Aktualizace vah ---
+        # aktualizace vah
 
         # aktualizace vah a biasu výstupní vrstvy
         for i in range(len(self.w_output)):
@@ -124,17 +124,12 @@ class MLP:
             status = "✓" if prediction == target else "✗"
             print(f"  {x} XOR {y} = {output:.4f}  →  {prediction}  (cíl: {target})  {status}")
 
-
-# --- XOR data ---
-
 xor_data = [
     (0, 0, 0),
     (0, 1, 1),
     (1, 0, 1),
     (1, 1, 0),
 ]
-
-# --- Trénink, vyhodnocení, vizualizace ---
 
 mlp = MLP(hidden_size=4, learning_rate=2.0)
 losses = mlp.fit(xor_data, epochs=10000)
