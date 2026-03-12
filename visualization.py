@@ -108,3 +108,70 @@ def plot_xor(mlp, xor_data, losses):
 
     fig.update_layout(width=1200, height=500, showlegend=False)
     fig.show()
+
+
+def plot_hopfield_all(patterns, pattern_names, recoveries):
+    """Vykreslí vše do jedné Plotly figury – čistá mřížka heatmap.
+
+    recoveries: list of dict s klíči:
+        original, corrupted, recovered_sync, recovered_async,
+        name, sync_steps, async_steps, energies_sync, energies_async
+    """
+    n_pat = len(patterns)
+    n_rec = len(recoveries)
+    cols = 4
+    n_rows = 1 + n_rec  # 1 řádek vzorů + 1 řádek na test
+
+    # Titulky: řádek 1 = vzory, další = obnovy
+    subplot_titles = list(pattern_names)  # řádek 1 (3 vzory, 4. slot je None – bez titulku)
+    for rec in recoveries:
+        e_start = int(rec['energies_sync'][0])
+        e_end_s = int(rec['energies_sync'][-1])
+        e_end_a = int(rec['energies_async'][-1])
+        subplot_titles.extend([
+            f'Originál',
+            f'Poškozený – {rec["name"]}',
+            f'Sync ({rec["sync_steps"]} kr.) E: {e_start}→{e_end_s}',
+            f'Async ({rec["async_steps"]} kr.) E: {e_start}→{e_end_a}',
+        ])
+
+    # Specs: řádek 1 má jen n_pat sloupců
+    specs = [[{}] * n_pat + [None] * (cols - n_pat)]
+    for _ in range(n_rec):
+        specs.append([{}, {}, {}, {}])
+
+    fig = make_subplots(
+        rows=n_rows, cols=cols,
+        specs=specs,
+        subplot_titles=subplot_titles,
+        vertical_spacing=0.06,
+        horizontal_spacing=0.03,
+    )
+
+    bw = [[0, 'white'], [1, 'black']]
+
+    def add_heatmap(matrix, row, col):
+        fig.add_trace(go.Heatmap(
+            z=matrix[::-1], colorscale=bw, zmin=-1, zmax=1, showscale=False
+        ), row=row, col=col)
+        fig.update_xaxes(showticklabels=False, row=row, col=col)
+        fig.update_yaxes(showticklabels=False, row=row, col=col)
+
+    # Řádek 1: uložené vzory
+    for i, pat in enumerate(patterns):
+        add_heatmap(pat, 1, i + 1)
+
+    # Řádky obnov
+    for idx, rec in enumerate(recoveries):
+        row = 2 + idx
+        for c, mat in enumerate([rec['original'], rec['corrupted'],
+                                  rec['recovered_sync'], rec['recovered_async']]):
+            add_heatmap(mat, row, c + 1)
+
+    fig.update_layout(
+        title='Hopfieldova síť – uložené vzory a obnova',
+        height=250 * n_rows,
+        width=1100,
+        showlegend=False,
+    )
+    fig.show()
