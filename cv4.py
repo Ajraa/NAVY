@@ -44,6 +44,8 @@ class FindCheeseEnv:
 
 
 def epsilon_greedy(q_table, state, epsilon):
+	# S pravděpodobností epsilon zkoušíme náhodnou akci (exploration),
+	# jinak bereme nejlepší známou akci (exploitation).
 	if random.random() < epsilon:
 		return random.randint(0, q_table.shape[2] - 1)
 
@@ -52,12 +54,13 @@ def epsilon_greedy(q_table, state, epsilon):
 
 
 def greedy_path(env, q_table, max_steps=100):
+	# Vyhodnocení naučené politiky bez náhody: vždy volíme argmax akci.
 	state = env.reset()
 	path = [state]
 
 	for _ in range(max_steps):
 		r, c = state
-		action = int(np.argmax(q_table[r, c]))
+		action = int(np.argmax(q_table[r, c])) # Postupně volíme nejlepší výsledek a zapisujeme cestu
 		next_state, _, done = env.step(action)
 		state = next_state
 		path.append(state)
@@ -79,19 +82,22 @@ def q_learning_find_cheese(
 	epsilon_min=0.05,
 	max_steps=100,
 ):
-	q_table = np.zeros((env.rows, env.cols, len(env.actions)))
+	# Q-tabulka má tvar [řádek, sloupec, akce].
+	# Každá hodnota odhaduje, jak výhodné je provést akci v daném stavu.
+	q_table = np.zeros((env.rows, env.cols, len(env.actions))) # 3D pole, pro každý stav (r, c) a akci (N, S, W, E) máme odhad Q-hodnoty.
 	rewards = []
 	successes = []
 
 	epsilon = epsilon_start
 
 	for _ in range(episodes):
+		# Každá epizoda začíná ve startu a končí dosažením cíle/jámy nebo limitem kroků.
 		state = env.reset()
 		total_reward = 0.0
 		done = False
 
 		for _ in range(max_steps):
-			action = epsilon_greedy(q_table, state, epsilon)
+			action = epsilon_greedy(q_table, state, epsilon) # Výběr směru
 			next_state, reward, done = env.step(action)
 
 			r, c = state
@@ -99,6 +105,8 @@ def q_learning_find_cheese(
 
 			q_old = q_table[r, c, action]
 			q_best_next = np.max(q_table[nr, nc])
+			# Bellmanův update:
+			# Q(s,a) <- Q(s,a) + alpha * (reward + gamma * max_a' Q(s',a') - Q(s,a))
 			q_table[r, c, action] = q_old + alpha * (reward + gamma * q_best_next - q_old)
 
 			state = next_state
@@ -109,6 +117,7 @@ def q_learning_find_cheese(
 
 		rewards.append(total_reward)
 		successes.append(1 if state == env.cheese else 0)
+		# Postupně snižujeme exploration, aby ke konci převládlo využití naučených znalostí.
 		epsilon = max(epsilon_min, epsilon * epsilon_decay)
 
 	return q_table, rewards, successes
@@ -198,7 +207,6 @@ if __name__ == '__main__':
 	learned_at = find_learning_iteration(successes, window=100, threshold=0.95)
 	final_path, final_success = greedy_path(env, q_table, max_steps=50)
 
-	print('Q-learning: Find the cheese')
 	print(f'Náhodná pozice myši (start): {env.start}')
 	print(f'Náhodná pozice sýru: {env.cheese}')
 	print(f'Náhodně vygenerované bariéry: {sorted(env.holes)}')
@@ -210,6 +218,7 @@ if __name__ == '__main__':
 	print(f'Greedy průchod po tréninku: {"úspěch" if final_success else "neúspěch"}')
 	print(f'Délka finální cesty: {len(final_path) - 1} kroků')
 
+	# odměna epizody je z rewards, klouzavý průměr úspěšnosti je průměr za posledních 50 epizod
 	plot_find_cheese(
 		rows=env.rows,
 		cols=env.cols,
