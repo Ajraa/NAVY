@@ -175,3 +175,277 @@ def plot_hopfield_all(patterns, pattern_names, recoveries):
         showlegend=False,
     )
     fig.show()
+
+
+def plot_find_cheese(rows, cols, start, cheese, holes, path, rewards):
+    """Vykreslí průběh učení a animaci finální cesty agenta."""
+
+    fig = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=('Hrací plocha a finální greedy cesta', 'Průběh odměny během tréninku'),
+        horizontal_spacing=0.12,
+    )
+
+    grid = np.zeros((rows, cols), dtype=float)
+    for r, c in holes:
+        grid[r, c] = -1.0
+    cr, cc = cheese
+    grid[cr, cc] = 1.0
+
+    # Heatmap je kvůli orientaci převrácená v ose y.
+    heatmap = go.Heatmap(
+        z=np.flipud(grid),
+        x=list(range(cols)),
+        y=list(range(rows)),
+        zmin=-1,
+        zmax=1,
+        colorscale=[
+            [0.0, '#1f2937'],
+            [0.499, '#1f2937'],
+            [0.5, '#f3f4f6'],
+            [0.999, '#f3f4f6'],
+            [1.0, '#fbbf24'],
+        ],
+        showscale=False,
+    )
+    fig.add_trace(heatmap, row=1, col=1)
+
+    hole_x = []
+    hole_y = []
+    for hr, hc in holes:
+        hole_x.append(hc)
+        hole_y.append(rows - 1 - hr)
+
+    fig.add_trace(
+        go.Scatter(
+            x=hole_x,
+            y=hole_y,
+            mode='markers',
+            marker=dict(size=22, color='#111827', symbol='square'),
+            showlegend=False,
+            hoverinfo='skip',
+        ),
+        row=1,
+        col=1,
+    )
+
+    sr, sc = start
+    fig.add_trace(
+        go.Scatter(
+            x=[sc],
+            y=[rows - 1 - sr],
+            mode='markers+text',
+            marker=dict(size=14, color='#2563eb', symbol='square'),
+            text=['START'],
+            textposition='bottom center',
+            showlegend=False,
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=[cc],
+            y=[rows - 1 - cr],
+            mode='markers+text',
+            marker=dict(size=16, color='#f59e0b', symbol='star'),
+            text=['CHEESE'],
+            textposition='bottom center',
+            showlegend=False,
+        ),
+        row=1,
+        col=1,
+    )
+
+    first_r, first_c = path[0]
+    fig.add_trace(
+        go.Scatter(
+            x=[first_c],
+            y=[rows - 1 - first_r],
+            mode='lines',
+            line=dict(color='#ef4444', width=2),
+            opacity=0.45,
+            showlegend=False,
+        ),
+        row=1,
+        col=1,
+    )
+    trail_trace_idx = len(fig.data) - 1
+
+    walker_trace = go.Scatter(
+        x=[first_c],
+        y=[rows - 1 - first_r],
+        mode='markers',
+        marker=dict(size=18, color='#dc2626', line=dict(color='white', width=1.5)),
+        name='Walker',
+        showlegend=False,
+    )
+    fig.add_trace(walker_trace, row=1, col=1)
+    walker_trace_idx = len(fig.data) - 1
+
+    moving_rewards = []
+    window = 50
+    for i in range(len(rewards)):
+        start_idx = max(0, i - window + 1)
+        moving_rewards.append(float(np.mean(rewards[start_idx:i + 1])))
+
+    fig.add_trace(
+        go.Scatter(
+            x=list(range(1, len(rewards) + 1)),
+            y=rewards,
+            mode='lines',
+            line=dict(color='#94a3b8', width=1),
+            name='Odměna epizody',
+            showlegend=False,
+        ),
+        row=1,
+        col=2,
+    )
+    rewards_trace_idx = len(fig.data) - 1
+
+    fig.add_trace(
+        go.Scatter(
+            x=list(range(1, len(moving_rewards) + 1)),
+            y=moving_rewards,
+            mode='lines',
+            line=dict(color='#0f766e', width=2.5),
+            name='Klouzavý průměr (50)',
+            showlegend=False,
+        ),
+        row=1,
+        col=2,
+    )
+    moving_rewards_trace_idx = len(fig.data) - 1
+
+    trail_x = []
+    trail_y = []
+    frames = []
+    for i, (r, c) in enumerate(path):
+        trail_x.append(c)
+        trail_y.append(rows - 1 - r)
+        frames.append(
+            go.Frame(
+                name=f'krok-{i}',
+                data=[
+                    go.Scatter(
+                        x=trail_x.copy(),
+                        y=trail_y.copy(),
+                        mode='lines',
+                        line=dict(color='#ef4444', width=2),
+                        opacity=0.45,
+                        showlegend=False,
+                    ),
+                    go.Scatter(
+                        x=[c],
+                        y=[rows - 1 - r],
+                        mode='markers',
+                        marker=dict(size=18, color='#dc2626', line=dict(color='white', width=1.5)),
+                        showlegend=False,
+                    ),
+                    go.Scatter(
+                        x=list(range(1, len(rewards) + 1)),
+                        y=rewards,
+                        mode='lines',
+                        line=dict(color='#94a3b8', width=1),
+                        showlegend=False,
+                    ),
+                    go.Scatter(
+                        x=list(range(1, len(moving_rewards) + 1)),
+                        y=moving_rewards,
+                        mode='lines',
+                        line=dict(color='#0f766e', width=2.5),
+                        showlegend=False,
+                    )
+                ],
+                traces=[
+                    trail_trace_idx,
+                    walker_trace_idx,
+                    rewards_trace_idx,
+                    moving_rewards_trace_idx,
+                ],
+            )
+        )
+
+    fig.frames = frames
+
+    sliders = [
+        {
+            'active': 0,
+            'currentvalue': {'prefix': 'Krok: '},
+            'y': -0.22,
+            'steps': [
+                {
+                    'method': 'animate',
+                    'label': str(i),
+                    'args': [[f'krok-{i}'], {'mode': 'immediate', 'frame': {'duration': 0, 'redraw': False}}],
+                }
+                for i in range(len(path))
+            ],
+        }
+    ]
+
+    fig.update_layout(
+        width=1300,
+        height=550,
+        title='Find the cheese - Q-learning vizualizace',
+        margin=dict(l=60, r=40, t=160, b=180),
+        uirevision='find-cheese-static-layout',
+        updatemenus=[
+            {
+                'type': 'buttons',
+                'direction': 'right',
+                'buttons': [
+                    {
+                        'label': 'Play',
+                        'method': 'animate',
+                        'args': [
+                            None,
+                            {
+                                'frame': {'duration': 350, 'redraw': False},
+                                'transition': {'duration': 180, 'easing': 'linear'},
+                                'fromcurrent': True,
+                                'mode': 'immediate',
+                            },
+                        ],
+                    },
+                    {
+                        'label': 'Pause',
+                        'method': 'animate',
+                        'args': [[None], {'mode': 'immediate', 'frame': {'duration': 0, 'redraw': False}}],
+                    },
+                ],
+                'x': 0.98,
+                'y': 1.30,
+                'xanchor': 'right',
+                'yanchor': 'top',
+                'pad': {'r': 0, 't': 0},
+                'showactive': False,
+            }
+        ],
+        sliders=sliders,
+    )
+
+    fig.update_xaxes(
+        row=1,
+        col=1,
+        title_text='Sloupec',
+        dtick=1,
+        range=[-0.5, cols - 0.5],
+        constrain='domain',
+    )
+    fig.update_yaxes(
+        row=1,
+        col=1,
+        title_text='Řádek',
+        dtick=1,
+        range=[-0.5, rows - 0.5],
+        scaleanchor='x',
+        scaleratio=1,
+    )
+
+    fig.update_xaxes(row=1, col=2, title_text='Epizoda')
+    fig.update_yaxes(row=1, col=2, title_text='Odměna')
+
+    fig.show()
