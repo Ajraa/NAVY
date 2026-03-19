@@ -228,3 +228,16 @@ if __name__ == '__main__':
 		path=final_path,
 		rewards=rewards,
 	)
+
+	start, cheese = generate_random_start_and_cheese(rows, cols)
+	env.start = start
+	final_path, final_success = greedy_path(env, q_table, max_steps=50)
+	plot_find_cheese(
+		rows=env.rows,
+		cols=env.cols,
+		start=env.start,
+		cheese=env.cheese,
+		holes=env.holes,
+		path=final_path,
+		rewards=rewards,
+	)
