@@ -449,3 +449,119 @@ def plot_find_cheese(rows, cols, start, cheese, holes, path, rewards):
     fig.update_yaxes(row=1, col=2, title_text='Odměna')
 
     fig.show()
+
+
+def plot_cartpole(rewards: list, demo_states: list):
+    """Vizualizace výsledků DQN agenta na CartPole-v1.
+
+    Levý subplot: průběh tréninku – surové odměny a klouzavý průměr.
+    Pravý subplot: úhel tyče v demo epizodě s vyznačenými hranicemi selhání.
+    """
+    n = len(rewards)
+
+    # Výpočet klouzavého průměru (okno 50 epizod)
+    window = 50
+    moving_avg = []
+    for i in range(n):
+        start_idx = max(0, i - window + 1)
+        moving_avg.append(float(np.mean(rewards[start_idx : i + 1])))
+
+    # Extrakce úhlu tyče (index 2) z demo stavů
+    pole_angles = [s[2] for s in demo_states]
+    steps = list(range(len(pole_angles)))
+
+    fig = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=('Průběh tréninku DQN', 'Demo epizoda \u2013 úhel tyče'),
+        horizontal_spacing=0.12,
+    )
+
+    # --- Levý subplot: tréninková křivka ---
+
+    # Šedá linie: surové odměny za epizodu
+    fig.add_trace(
+        go.Scatter(
+            x=list(range(1, n + 1)),
+            y=rewards,
+            mode='lines',
+            line=dict(color='#94a3b8', width=1),
+            opacity=0.4,
+            name='Odměna epizody',
+            showlegend=False,
+        ),
+        row=1,
+        col=1,
+    )
+
+    # Tmavozelená linie: klouzavý průměr
+    fig.add_trace(
+        go.Scatter(
+            x=list(range(1, n + 1)),
+            y=moving_avg,
+            mode='lines',
+            line=dict(color='#166534', width=2.5),
+            name='Klouzavý průměr (50 ep.)',
+            showlegend=False,
+        ),
+        row=1,
+        col=1,
+    )
+
+    # Přerušovaná červená linie: práh konvergence 195
+    fig.add_trace(
+        go.Scatter(
+            x=[1, n],
+            y=[195.0, 195.0],
+            mode='lines',
+            line=dict(color='red', width=1.5, dash='dash'),
+            name='Práh 195',
+            showlegend=False,
+        ),
+        row=1,
+        col=1,
+    )
+
+    # --- Pravý subplot: úhel tyče v demo epizodě ---
+
+    # Modrá linie: průběh úhlu tyče
+    fig.add_trace(
+        go.Scatter(
+            x=steps,
+            y=pole_angles,
+            mode='lines',
+            line=dict(color='#2563eb', width=2),
+            name='Úhel tyče',
+            showlegend=False,
+        ),
+        row=1,
+        col=2,
+    )
+
+    # Přerušované červené linky: hranice selhání ±12° = ±0.2095 rad
+    failure_angle = 0.2095
+    for y_val in [failure_angle, -failure_angle]:
+        fig.add_trace(
+            go.Scatter(
+                x=[steps[0], steps[-1]],
+                y=[y_val, y_val],
+                mode='lines',
+                line=dict(color='red', width=1.5, dash='dash'),
+                showlegend=False,
+            ),
+            row=1,
+            col=2,
+        )
+
+    # Popisky os
+    fig.update_xaxes(title_text='Epizoda', row=1, col=1)
+    fig.update_yaxes(title_text='Odměna', row=1, col=1)
+    fig.update_xaxes(title_text='Krok', row=1, col=2)
+    fig.update_yaxes(title_text='Úhel [rad]', row=1, col=2)
+
+    fig.update_layout(
+        width=1200,
+        height=500,
+        showlegend=False,
+    )
+    fig.show()
