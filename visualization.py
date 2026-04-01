@@ -452,116 +452,153 @@ def plot_find_cheese(rows, cols, start, cheese, holes, path, rewards):
 
 
 def plot_cartpole(rewards: list, demo_states: list):
-    """Vizualizace výsledků DQN agenta na CartPole-v1.
+    """Animace DQN agenta na CartPole-v1 – vozík s tyčí v každém kroku demo epizody.
 
-    Levý subplot: průběh tréninku – surové odměny a klouzavý průměr.
-    Pravý subplot: úhel tyče v demo epizodě s vyznačenými hranicemi selhání.
+    Stav: (cart_pos, cart_vel, pole_angle, pole_vel)
+    Vozík se pohybuje na kolejnici v rozsahu ±2.4, tyč selhává při ±12° (±0.2095 rad).
     """
-    n = len(rewards)
 
-    # Výpočet klouzavého průměru (okno 50 epizod)
-    window = 50
-    moving_avg = []
-    for i in range(n):
-        start_idx = max(0, i - window + 1)
-        moving_avg.append(float(np.mean(rewards[start_idx : i + 1])))
+    # Vizuální konstanty (v souřadnicích grafu)
+    CART_W = 0.40
+    CART_H = 0.14
+    WHEEL_R = 0.07
+    POLE_LEN = 0.85   # plná délka tyče (CartPole half-length = 0.5 m)
+    CART_Y_BOT = WHEEL_R * 2
+    PIVOT_Y = CART_Y_BOT + CART_H
 
-    # Extrakce úhlu tyče (index 2) z demo stavů
-    pole_angles = [s[2] for s in demo_states]
-    steps = list(range(len(pole_angles)))
+    def make_traces(cart_x: float, pole_angle: float):
+        """Vrátí 4 Scatter trace pro vozík, kola, tyč a kuličku na konci tyče."""
+        cx_l = cart_x - CART_W / 2
+        cx_r = cart_x + CART_W / 2
 
-    fig = make_subplots(
-        rows=1,
-        cols=2,
-        subplot_titles=('Průběh tréninku DQN', 'Demo epizoda \u2013 úhel tyče'),
-        horizontal_spacing=0.12,
-    )
+        tip_x = cart_x + POLE_LEN * np.sin(pole_angle)
+        tip_y = PIVOT_Y + POLE_LEN * np.cos(pole_angle)
 
-    # --- Levý subplot: tréninková křivka ---
-
-    # Šedá linie: surové odměny za epizodu
-    fig.add_trace(
-        go.Scatter(
-            x=list(range(1, n + 1)),
-            y=rewards,
-            mode='lines',
-            line=dict(color='#94a3b8', width=1),
-            opacity=0.4,
-            name='Odměna epizody',
-            showlegend=False,
-        ),
-        row=1,
-        col=1,
-    )
-
-    # Tmavozelená linie: klouzavý průměr
-    fig.add_trace(
-        go.Scatter(
-            x=list(range(1, n + 1)),
-            y=moving_avg,
-            mode='lines',
-            line=dict(color='#166534', width=2.5),
-            name='Klouzavý průměr (50 ep.)',
-            showlegend=False,
-        ),
-        row=1,
-        col=1,
-    )
-
-    # Přerušovaná červená linie: práh konvergence 195
-    fig.add_trace(
-        go.Scatter(
-            x=[1, n],
-            y=[195.0, 195.0],
-            mode='lines',
-            line=dict(color='red', width=1.5, dash='dash'),
-            name='Práh 195',
-            showlegend=False,
-        ),
-        row=1,
-        col=1,
-    )
-
-    # --- Pravý subplot: úhel tyče v demo epizodě ---
-
-    # Modrá linie: průběh úhlu tyče
-    fig.add_trace(
-        go.Scatter(
-            x=steps,
-            y=pole_angles,
-            mode='lines',
-            line=dict(color='#2563eb', width=2),
-            name='Úhel tyče',
-            showlegend=False,
-        ),
-        row=1,
-        col=2,
-    )
-
-    # Přerušované červené linky: hranice selhání ±12° = ±0.2095 rad
-    failure_angle = 0.2095
-    for y_val in [failure_angle, -failure_angle]:
-        fig.add_trace(
-            go.Scatter(
-                x=[steps[0], steps[-1]],
-                y=[y_val, y_val],
-                mode='lines',
-                line=dict(color='red', width=1.5, dash='dash'),
-                showlegend=False,
-            ),
-            row=1,
-            col=2,
+        cart = go.Scatter(
+            x=[cx_l, cx_r, cx_r, cx_l, cx_l],
+            y=[CART_Y_BOT, CART_Y_BOT, PIVOT_Y, PIVOT_Y, CART_Y_BOT],
+            fill='toself', fillcolor='#2563eb',
+            line=dict(color='#1e40af', width=2),
+            mode='lines', hoverinfo='skip', showlegend=False,
         )
+        wheels = go.Scatter(
+            x=[cx_l + 0.08, cx_r - 0.08],
+            y=[WHEEL_R, WHEEL_R],
+            mode='markers',
+            marker=dict(size=16, color='#1f2937', symbol='circle'),
+            hoverinfo='skip', showlegend=False,
+        )
+        pole = go.Scatter(
+            x=[cart_x, tip_x],
+            y=[PIVOT_Y, tip_y],
+            mode='lines',
+            line=dict(color='#92400e', width=10),
+            hoverinfo='skip', showlegend=False,
+        )
+        tip_ball = go.Scatter(
+            x=[tip_x], y=[tip_y],
+            mode='markers',
+            marker=dict(size=14, color='#dc2626', symbol='circle'),
+            hoverinfo='skip', showlegend=False,
+        )
+        return cart, wheels, pole, tip_ball
 
-    # Popisky os
-    fig.update_xaxes(title_text='Epizoda', row=1, col=1)
-    fig.update_yaxes(title_text='Odměna', row=1, col=1)
-    fig.update_xaxes(title_text='Krok', row=1, col=2)
-    fig.update_yaxes(title_text='Úhel [rad]', row=1, col=2)
+    # Statické pozadí: koleje, hranice selhání
+    track = go.Scatter(
+        x=[-2.6, 2.6], y=[0, 0],
+        mode='lines', line=dict(color='#374151', width=4),
+        hoverinfo='skip', showlegend=False,
+    )
+    left_wall = go.Scatter(
+        x=[-2.4, -2.4], y=[0, PIVOT_Y + POLE_LEN + 0.1],
+        mode='lines', line=dict(color='#ef4444', width=2, dash='dash'),
+        hoverinfo='skip', showlegend=False,
+    )
+    right_wall = go.Scatter(
+        x=[2.4, 2.4], y=[0, PIVOT_Y + POLE_LEN + 0.1],
+        mode='lines', line=dict(color='#ef4444', width=2, dash='dash'),
+        hoverinfo='skip', showlegend=False,
+    )
+
+    s0 = demo_states[0]
+    cart0, wheels0, pole0, ball0 = make_traces(s0[0], s0[2])
+
+    fig = go.Figure(data=[track, left_wall, right_wall, cart0, wheels0, pole0, ball0])
+
+    # Indexy animovaných stop (za statickými 3)
+    CART_IDX, WHEELS_IDX, POLE_IDX, BALL_IDX = 3, 4, 5, 6
+
+    frames = []
+    for i, state in enumerate(demo_states):
+        cart_x, _, pole_angle, _ = state
+        cart, wheels, pole, ball = make_traces(cart_x, pole_angle)
+        frames.append(go.Frame(
+            name=str(i),
+            data=[cart, wheels, pole, ball],
+            traces=[CART_IDX, WHEELS_IDX, POLE_IDX, BALL_IDX],
+        ))
+    fig.frames = frames
+
+    n_steps = len(demo_states)
+    slider_step = max(1, n_steps // 100)   # max ~100 značek na slideru
+
+    sliders = [{
+        'active': 0,
+        'currentvalue': {'prefix': 'Krok: ', 'font': {'size': 13}},
+        'y': -0.08,
+        'steps': [
+            {
+                'method': 'animate',
+                'label': str(i) if i % (slider_step * 5) == 0 else '',
+                'args': [[str(i)], {'mode': 'immediate',
+                                    'frame': {'duration': 0, 'redraw': True}}],
+            }
+            for i in range(n_steps)
+        ],
+    }]
 
     fig.update_layout(
-        width=1200,
-        height=500,
-        showlegend=False,
+        title=f'CartPole DQN – demo epizoda ({n_steps} kroků)',
+        xaxis=dict(
+            range=[-2.75, 2.75], zeroline=False,
+            title='Pozice vozíku [m]', showgrid=True, gridcolor='#e2e8f0',
+        ),
+        yaxis=dict(
+            range=[-0.18, PIVOT_Y + POLE_LEN + 0.15],
+            zeroline=False, showticklabels=False, showgrid=False,
+        ),
+        width=1000,
+        height=480,
+        plot_bgcolor='#f8fafc',
+        paper_bgcolor='#ffffff',
+        margin=dict(l=60, r=40, t=60, b=100),
+        updatemenus=[{
+            'type': 'buttons',
+            'direction': 'right',
+            'buttons': [
+                {
+                    'label': '▶  Play',
+                    'method': 'animate',
+                    'args': [None, {
+                        'frame': {'duration': 40, 'redraw': True},
+                        'transition': {'duration': 0},
+                        'fromcurrent': True,
+                        'mode': 'immediate',
+                    }],
+                },
+                {
+                    'label': '⏸  Pauza',
+                    'method': 'animate',
+                    'args': [[None], {'mode': 'immediate',
+                                      'frame': {'duration': 0, 'redraw': False}}],
+                },
+            ],
+            'x': 0.5, 'y': 1.13,
+            'xanchor': 'center', 'yanchor': 'top',
+            'showactive': False,
+            'font': {'size': 13},
+        }],
+        sliders=sliders,
     )
+
     fig.show()

@@ -62,6 +62,25 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
+def _greedy_eval(net: DQN, env, seed: int) -> float:
+    """Spustí jednu greedy epizodu (epsilon=0) a vrátí celkovou odměnu.
+
+    Používá se uvnitř tréninku pro sledování skutečného výkonu sítě
+    bez vlivu náhodného průzkumu (epsilon-greedy).
+    """
+    state, _ = env.reset(seed=seed)
+    total = 0.0
+    done = False
+    with torch.no_grad():
+        while not done:
+            t = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+            action = int(net(t).argmax(dim=1).item())
+            state, reward, terminated, truncated, _ = env.step(action)
+            total += reward
+            done = terminated or truncated
+    return total
+
+
 def train_dqn(
     episodes: int = 500,
     gamma: float = 0.99,
@@ -74,24 +93,34 @@ def train_dqn(
     target_update_freq: int = 10,
     hidden: int = 64,
     seed: int = 42,
+    eval_freq: int = 10,
+    cart_penalty: float = 0.3,
 ):
     """Natrénuje DQN agenta na prostředí CartPole-v1.
 
-    Algoritmus:
+    Algoritmus (Double DQN + reward shaping):
     1. Policy síť vybírá akce (epsilon-greedy).
-    2. Přechody se ukládají do replay bufferu.
-    3. Každý krok se vzorkuje dávka a provede gradient krok MSE loss.
-    4. Target síť se periodicky synchronizuje s policy sítí.
+    2. Přechody se ukládají do replay bufferu s upravenou odměnou:
+       shaped_reward = 1.0 − cart_penalty · (cart_pos / 2.4)²
+       Penalizace nutí agenta zůstávat uprostřed kolejnice.
+    3. Každý krok se vzorkuje dávka a provede gradient krok Huber loss.
+       TD cíl počítá Double DQN: policy_net volí akci, target_net ji hodnotí.
+    4. Gradienty jsou ořezány (clip_grad_norm) pro stabilitu.
+    5. Target síť se periodicky synchronizuje s policy sítí.
+    6. Každých eval_freq epizod se spustí greedy evaluace;
+       nejlepší greedy výkon určuje, která váha se vrátí jako výsledek.
 
-    Vrací tuple (policy_net, rewards_list).
+    Vrací tuple (policy_net, rewards_list), kde policy_net nese váhy
+    nejlepší greedy epizody (= demo vždy odpovídá skutečnému vrcholu).
     """
     # Nastavení seedů pro reprodukovatelnost
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    # Prostředí CartPole
+    # Prostředí CartPole – jedno pro trénink, druhé pro greedy evaluaci
     env = gym.make('CartPole-v1')
+    eval_env = gym.make('CartPole-v1')
 
     # Dvě sítě: policy (učí se) a target (stabilní cílová reference)
     policy_net = DQN(hidden=hidden)
@@ -100,11 +129,14 @@ def train_dqn(
     target_net.eval()  # Target síť se pouze čte, neprovádí se gradient
 
     optimizer = optim.Adam(policy_net.parameters(), lr=lr)
-    loss_fn = nn.MSELoss()
+    # Huber loss (SmoothL1) – robustnější než MSE, méně citlivá na odlehlé TD chyby
+    loss_fn = nn.SmoothL1Loss()
     replay_buffer = ReplayBuffer(capacity=buffer_capacity)
 
     epsilon = epsilon_start
     rewards_list = []
+    best_greedy_reward = -float('inf')
+    best_weights = None  # váhy modelu s nejlepším greedy výkonem
 
     for episode in range(1, episodes + 1):
         state, _ = env.reset(seed=seed + episode)
@@ -125,6 +157,13 @@ def train_dqn(
             done = terminated or truncated
             total_reward += reward
 
+            # Reward shaping: penalizace za vzdálení vozíku od středu kolejnice.
+            # Bez penalizace agent balancuje tyč, ale ignoruje drift vozíku
+            # a epizoda vždy končí vyjetím z mezí ±2.4.
+            if not done:
+                cart_pos = next_state[0]
+                reward -= cart_penalty * (cart_pos / 2.4) ** 2
+
             replay_buffer.push(state, action, reward, next_state, done)
             state = next_state
 
@@ -141,17 +180,30 @@ def train_dqn(
                 # Q-hodnoty aktuálního stavu pro zvolené akce
                 current_q = policy_net(states_t).gather(1, actions_t).squeeze(1)
 
-                # TD cíl: r + gamma * max_a Q_target(s', a)  (pro terminální stav jen r)
+                # Double DQN TD cíl:
+                #   akce vybírá policy_net (redukuje overestimation bias),
+                #   hodnotu hodnotí stabilní target_net
                 with torch.no_grad():
-                    next_q = target_net(next_states_t).max(dim=1).values
+                    next_actions = policy_net(next_states_t).argmax(dim=1, keepdim=True)
+                    next_q = target_net(next_states_t).gather(1, next_actions).squeeze(1)
                     target_q = rewards_t + gamma * next_q * (1.0 - dones_t)
 
                 loss = loss_fn(current_q, target_q)
                 optimizer.zero_grad()
                 loss.backward()
+                # Gradient clipping – zabraňuje explozi gradientů
+                torch.nn.utils.clip_grad_norm_(policy_net.parameters(), max_norm=10.0)
                 optimizer.step()
 
         rewards_list.append(total_reward)
+
+        # Greedy evaluace každých eval_freq epizod – měří skutečný výkon bez epsilon.
+        # Na základě greedy výkonu (ne epsilon-greedy odměny) ukládáme nejlepší váhy.
+        if episode % eval_freq == 0:
+            greedy_r = _greedy_eval(policy_net, eval_env, seed=seed + episode)
+            if greedy_r > best_greedy_reward:
+                best_greedy_reward = greedy_r
+                best_weights = {k: v.clone() for k, v in policy_net.state_dict().items()}
 
         # Snižování průzkumné epsilon po každé epizodě
         epsilon = max(epsilon_min, epsilon * epsilon_decay)
@@ -163,9 +215,13 @@ def train_dqn(
         # Výpis průběhu každých 50 epizod
         if episode % 50 == 0:
             avg = np.mean(rewards_list[-50:])
-            print(f'Epizoda {episode:4d} | průměrná odměna (50 ep.): {avg:6.1f} | epsilon: {epsilon:.3f}')
+            print(f'Epizoda {episode:4d} | průměrná odměna (50 ep.): {avg:6.1f} | epsilon: {epsilon:.3f} | nejlepší greedy: {best_greedy_reward:.0f}')
 
     env.close()
+    eval_env.close()
+    # Před vrácením načteme váhy nejlepší greedy epizody
+    if best_weights is not None:
+        policy_net.load_state_dict(best_weights)
     return policy_net, rewards_list
 
 
@@ -222,6 +278,6 @@ if __name__ == '__main__':
     print(f'Průměrná odměna (posledních 50 epizod): {np.mean(rewards[-50:]):.1f}')
 
     demo_states, demo_reward = collect_demo_episode(policy_net)
-    print(f'Demo epizoda: {demo_reward:.0f} kroků')
+    print(f'Demo epizoda (nejlepší greedy model): {demo_reward:.0f} kroků')
 
     plot_cartpole(rewards, demo_states)
