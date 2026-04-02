@@ -139,12 +139,13 @@ def train_dqn(
     best_weights = None  # váhy modelu s nejlepším greedy výkonem
 
     for episode in range(1, episodes + 1):
+        # Krok 1: Reset prostředí a inicializace epizody
         state, _ = env.reset(seed=seed + episode)
         total_reward = 0.0
         done = False
 
         while not done:
-            # Epsilon-greedy výběr akce
+            # Krok 2: Epsilon-greedy výběr akce
             if random.random() < epsilon:
                 action = env.action_space.sample()
             else:
@@ -164,10 +165,11 @@ def train_dqn(
                 cart_pos = next_state[0]
                 reward -= cart_penalty * (cart_pos / 2.4) ** 2
 
+            # Krok 3: Uložení přechodu do replay bufferu
             replay_buffer.push(state, action, reward, next_state, done)
             state = next_state
 
-            # Trénink policy sítě, pokud je buffer dostatečně naplněn
+            # Krok 4: Trénink policy sítě, pokud je buffer dostatečně naplněn
             if len(replay_buffer) >= batch_size:
                 states_b, actions_b, rewards_b, next_states_b, dones_b = replay_buffer.sample(batch_size)
 
@@ -197,7 +199,7 @@ def train_dqn(
 
         rewards_list.append(total_reward)
 
-        # Greedy evaluace každých eval_freq epizod – měří skutečný výkon bez epsilon.
+        # Krok 5: Greedy evaluace každých eval_freq epizod – měří skutečný výkon bez epsilon.
         # Na základě greedy výkonu (ne epsilon-greedy odměny) ukládáme nejlepší váhy.
         if episode % eval_freq == 0:
             greedy_r = _greedy_eval(policy_net, eval_env, seed=seed + episode)
@@ -205,10 +207,10 @@ def train_dqn(
                 best_greedy_reward = greedy_r
                 best_weights = {k: v.clone() for k, v in policy_net.state_dict().items()}
 
-        # Snižování průzkumné epsilon po každé epizodě
+        # Krok 6: Snižování průzkumné epsilon po každé epizodě (epsilon decay)
         epsilon = max(epsilon_min, epsilon * epsilon_decay)
 
-        # Synchronizace target sítě s policy sítí každých target_update_freq epizod
+        # Krok 7: Synchronizace target sítě s policy sítí každých target_update_freq epizod
         if episode % target_update_freq == 0:
             target_net.load_state_dict(policy_net.state_dict())
 
