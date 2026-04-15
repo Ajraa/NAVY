@@ -451,6 +451,24 @@ def plot_find_cheese(rows, cols, start, cheese, holes, path, rewards):
     fig.show()
 
 
+def plot_ifs(xs: list, ys: list, zs: list, title: str) -> None:
+    """Vykreslí 3D scatter plot IFS fraktálu."""
+    fig = go.Figure(data=go.Scatter3d(
+        x=xs, y=ys, z=zs,
+        mode='markers',
+        marker=dict(size=1, color='black'),
+    ))
+    fig.update_layout(
+        title=title,
+        scene=dict(
+            xaxis_title='X',
+            yaxis_title='Y',
+            zaxis_title='Z',
+        ),
+    )
+    fig.show()
+
+
 def plot_cartpole(rewards: list, demo_states: list):
     """Animace DQN agenta na CartPole-v1 – vozík s tyčí v každém kroku demo epizody.
 
