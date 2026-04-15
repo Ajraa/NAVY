@@ -4,10 +4,10 @@ import threading
 import tkinter as tk
 from tkinter import ttk
 
-
 class CalculationCancelled(Exception):
     """Výjimka signalizující uživatelské zrušení výpočtu."""
 
+# parse_rule -> expand_lsystem -> build_lsystem_segments
 
 def expand_lsystem(axiom: str, rules: dict[str, str], nesting: int,
                    cancel_event: threading.Event | None = None) -> str:
@@ -62,7 +62,7 @@ def build_lsystem_segments(sequence: str, start_x: float, start_y: float,
                            angle_delta: float,
                            cancel_event: threading.Event | None = None) -> list[tuple[float, float, float, float]]:
     """Převede sekvenci L-systému na seznam úseček (x1, y1, x2, y2)."""
-    # Krok 1: Inicializace pozice želvy a zásobníku pro větvení
+    # Krok 1: Inicializace a zásobníku pro větvení
     x, y = start_x, start_y
     angle = start_angle_rad
     stack: list[tuple[float, float, float]] = []
@@ -73,7 +73,7 @@ def build_lsystem_segments(sequence: str, start_x: float, start_y: float,
         if cancel_event is not None and cancel_event.is_set():
             raise CalculationCancelled()
         if ch == 'F':
-            # Krok 3a: Posun vpřed s kreslením čáry (želva se posune a zanechá stopu)
+            # Krok 3a: Posun vpřed s kreslením čáry (posune se a zanechá stopu)
             new_x = x + line_length * math.cos(angle)
             new_y = y + line_length * math.sin(angle)
             segments.append((x, y, new_x, new_y))

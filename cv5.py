@@ -152,7 +152,7 @@ def train_dqn(
                 with torch.no_grad():
                     state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
                     q_values = policy_net(state_tensor)
-                    action = int(q_values.argmax(dim=1).item())
+                    action = int(q_values.argmax(dim=1).item()) # Nejlepší akce podle policy sítě
 
             next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
@@ -268,7 +268,6 @@ def find_convergence_episode(rewards: list, window: int = 50, threshold: float =
 
 
 if __name__ == '__main__':
-    print('Trénuji DQN pro CartPole-v1...')
     policy_net, rewards = train_dqn(episodes=500)
 
     convergence = find_convergence_episode(rewards)
