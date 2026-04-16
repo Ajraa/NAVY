@@ -29,21 +29,13 @@ _palette_stops = [
 
 
 def _build_palette(n: int = 256) -> np.ndarray:
-    """Sestaví paletu n RGB barev interpolací mezi zadanými zarážkami."""
-    palette = np.zeros((n, 3), dtype=np.uint8)
-    positions = [s[0] for s in _palette_stops]
-    colors = [s[1] for s in _palette_stops]
-    for i in range(n):
-        t = i / (n - 1)
-        # Najdi okolní zarážky
-        for j in range(len(positions) - 1):
-            if positions[j] <= t <= positions[j + 1]:
-                local_t = (t - positions[j]) / (positions[j + 1] - positions[j])
-                r = int(colors[j][0] + local_t * (colors[j + 1][0] - colors[j][0]))
-                g = int(colors[j][1] + local_t * (colors[j + 1][1] - colors[j][1]))
-                b = int(colors[j][2] + local_t * (colors[j + 1][2] - colors[j][2]))
-                palette[i] = (r, g, b)
-                break
+    """Sestaví paletu n RGB barev interpolací zarážek pomocí np.interp (vektorizovaně)."""
+    positions = np.array([s[0] for s in _palette_stops], dtype=np.float64)
+    colors = np.array([s[1] for s in _palette_stops], dtype=np.float64)
+    t = np.linspace(0.0, 1.0, n)
+    palette = np.empty((n, 3), dtype=np.uint8)
+    for ch in range(3):
+        palette[:, ch] = np.interp(t, positions, colors[:, ch]).astype(np.uint8)
     return palette
 
 
@@ -66,17 +58,24 @@ def compute_mandelbrot(x_min: float, x_max: float, y_min: float, y_max: float,
     iterations = np.full((height, width), max_iter, dtype=np.int32)
     # Maska aktivních pixelů — ty, které ještě neunikly
     mask = np.ones((height, width), dtype=bool)
+    # Pre-alokovaný buffer pro |z|² — plníme jen aktivní pixely, zbytek ignorujeme
+    abs2 = np.empty((height, width), dtype=np.float64)
 
     # Krok 3: Iterační smyčka z = z² + c
     for i in range(max_iter):
-        # Iterujeme pouze pixely, které ještě neunikly (optimalizace)
+        # Iterujeme pouze pixely, které ještě neunikly
         Z[mask] = Z[mask] ** 2 + C[mask]
-        # Test úniku: |z|² > 4  => |z| > 2 (bez zbytečného sqrt)
-        escaped = mask & (Z.real ** 2 + Z.imag ** 2 > 4.0)
+        # Test úniku: |z|² > 4 (bez sqrt)
+        # Počítáme jen na aktivních pixelech, ne na celém poli
+        abs2[mask] = Z.real[mask] ** 2 + Z.imag[mask] ** 2
+        escaped = mask & (abs2 > 4.0)
         # Zapamatuj číslo iterace, ve které pixel unikl
         iterations[escaped] = i
         # Vyřaď uniknuvší pixely z dalších výpočtů
         mask &= ~escaped
+        # Předčasný konec — všechny pixely unikly
+        if not mask.any():
+            break
 
     # Pixely stále v masce (neunikly) mají hodnotu max_iter => uvnitř množiny
     return iterations
@@ -96,18 +95,25 @@ def compute_julia(x_min: float, x_max: float, y_min: float, y_max: float,
     iterations = np.full((height, width), max_iter, dtype=np.int32)
     # Maska aktivních pixelů — ty, které ještě neunikly
     mask = np.ones((height, width), dtype=bool)
+    # Pre-alokovaný buffer pro |z|² — plníme jen aktivní pixely, zbytek ignorujeme
+    abs2 = np.empty((height, width), dtype=np.float64)
 
     # Krok 3: Iterační smyčka z = z² + c
     # Parametr c je fixní pro celý obrázek (na rozdíl od Mandelbrota)
     for i in range(max_iter):
-        # Iterujeme pouze pixely, které ještě neunikly (optimalizace)
+        # Iterujeme pouze pixely, které ještě neunikly
         Z[mask] = Z[mask] ** 2 + c
-        # Test úniku: |z|² > 4  => |z| > 2 (bez zbytečného sqrt)
-        escaped = mask & (Z.real ** 2 + Z.imag ** 2 > 4.0)
+        # Test úniku: |z|² > 4 (bez sqrt)
+        # Počítáme jen na aktivních pixelech, ne na celém poli
+        abs2[mask] = Z.real[mask] ** 2 + Z.imag[mask] ** 2
+        escaped = mask & (abs2 > 4.0)
         # Zapamatuj číslo iterace, ve které pixel unikl
         iterations[escaped] = i
         # Vyřaď uniknuvší pixely z dalších výpočtů
         mask &= ~escaped
+        # Předčasný konec — všechny pixely unikly
+        if not mask.any():
+            break
 
     # Pixely stále v masce (neunikly) mají hodnotu max_iter => uvnitř množiny
     return iterations
