@@ -53,39 +53,71 @@ PALETTE = _build_palette(256)
 def compute_mandelbrot(x_min: float, x_max: float, y_min: float, y_max: float,
                        width: int, height: int, max_iter: int) -> np.ndarray:
     """Vrátí matici (height × width) s počtem iterací; body v množině = max_iter."""
+    # Krok 1: Vytvoření mřížky komplexních čísel c
+    # Každý pixel odpovídá jednomu komplexnímu číslu c = x + iy
     x = np.linspace(x_min, x_max, width)
-    y = np.linspace(y_max, y_min, height)
-    C = x[np.newaxis, :] + 1j * y[:, np.newaxis]
+    y = np.linspace(y_max, y_min, height)   # y_max první => osa jde shora dolů
+    C = x[np.newaxis, :] + 1j * y[:, np.newaxis]   # mřížka (height × width)
+
+    # Krok 2: Počáteční podmínky
+    # Mandelbrot vždy začíná z z₀ = 0
     Z = np.zeros_like(C)
+    # Výchozí hodnota: každý pixel "přežil" všechny iterace (= je uvnitř množiny)
     iterations = np.full((height, width), max_iter, dtype=np.int32)
+    # Maska aktivních pixelů — ty, které ještě neunikly
     mask = np.ones((height, width), dtype=bool)
+
+    # Krok 3: Iterační smyčka z = z² + c
     for i in range(max_iter):
+        # Iterujeme pouze pixely, které ještě neunikly (optimalizace)
         Z[mask] = Z[mask] ** 2 + C[mask]
+        # Test úniku: |z|² > 4  => |z| > 2 (bez zbytečného sqrt)
         escaped = mask & (Z.real ** 2 + Z.imag ** 2 > 4.0)
+        # Zapamatuj číslo iterace, ve které pixel unikl
         iterations[escaped] = i
+        # Vyřaď uniknuvší pixely z dalších výpočtů
         mask &= ~escaped
+
+    # Pixely stále v masce (neunikly) mají hodnotu max_iter => uvnitř množiny
     return iterations
 
 
 def compute_julia(x_min: float, x_max: float, y_min: float, y_max: float,
                   c: complex, width: int, height: int, max_iter: int) -> np.ndarray:
     """Vrátí matici (height × width) s počtem iterací; body v množině = max_iter."""
+    # Krok 1: Vytvoření mřížky počátečních hodnot z₀
+    # U Juliovy množiny je mřížka počáteční hodnota z, ne parametr c
     x = np.linspace(x_min, x_max, width)
-    y = np.linspace(y_max, y_min, height)
-    Z = x[np.newaxis, :] + 1j * y[:, np.newaxis]
+    y = np.linspace(y_max, y_min, height)   # y_max první => osa jde shora dolů
+    Z = x[np.newaxis, :] + 1j * y[:, np.newaxis]   # mřížka (height × width)
+
+    # Krok 2: Počáteční podmínky
+    # Výchozí hodnota: každý pixel "přežil" všechny iterace (= je uvnitř množiny)
     iterations = np.full((height, width), max_iter, dtype=np.int32)
+    # Maska aktivních pixelů — ty, které ještě neunikly
     mask = np.ones((height, width), dtype=bool)
+
+    # Krok 3: Iterační smyčka z = z² + c
+    # Parametr c je fixní pro celý obrázek (na rozdíl od Mandelbrota)
     for i in range(max_iter):
+        # Iterujeme pouze pixely, které ještě neunikly (optimalizace)
         Z[mask] = Z[mask] ** 2 + c
+        # Test úniku: |z|² > 4  => |z| > 2 (bez zbytečného sqrt)
         escaped = mask & (Z.real ** 2 + Z.imag ** 2 > 4.0)
+        # Zapamatuj číslo iterace, ve které pixel unikl
         iterations[escaped] = i
+        # Vyřaď uniknuvší pixely z dalších výpočtů
         mask &= ~escaped
+
+    # Pixely stále v masce (neunikly) mají hodnotu max_iter => uvnitř množiny
     return iterations
 
 
 def iterations_to_image(grid: np.ndarray, max_iter: int) -> Image.Image:
     """Převede matici iterací na RGB obrázek pomocí palety."""
+    # Normalizace: počet iterací (0–max_iter) => index do palety (0–255)
     indices = (grid.astype(np.float32) / max_iter * 255).clip(0, 255).astype(np.uint8)
+    # Každý index nahraď RGB barvou z palety
     rgb = PALETTE[indices]
     return Image.fromarray(rgb)
 
