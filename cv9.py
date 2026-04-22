@@ -15,7 +15,9 @@ SKY_COLOR = "#87CEEB"
 
 def midpoint_displacement(x0: float, y0: float, x1: float, y1: float,
                            iterations: int, roughness: float, scale: float) -> list[tuple[float, float]]:
+    # Začínáme s jedním úsekem mezi krajními body (x0,y0) a (x1,y1)
     points = [(x0, y0), (x1, y1)]
+    # Počáteční maximální výchylka středového bodu závisí na měřítku a drsnosti terénu
     displacement = scale * roughness
 
     for _ in range(iterations):
@@ -23,11 +25,14 @@ def midpoint_displacement(x0: float, y0: float, x1: float, y1: float,
         for i in range(len(points) - 1):
             ax, ay = points[i]
             bx, by = points[i + 1]
+            # Vypočítáme střed úseku po ose X
             mx = (ax + bx) / 2
+            # Střed po ose Y náhodně posuneme o hodnotu z intervalu [-displacement, +displacement]
             my = (ay + by) / 2 + random.uniform(-displacement, displacement)
             new_points.append((mx, my))
             new_points.append((bx, by))
         points = new_points
+        # Každou iterací snížíme výchylku na polovinu — kratší úseky dostávají menší posuny
         displacement *= 0.5
 
     return points
