@@ -469,6 +469,54 @@ def plot_ifs(xs: list, ys: list, zs: list, title: str) -> None:
     fig.show()
 
 
+def plot_logistic_map(a_bif: np.ndarray, x_bif: np.ndarray,
+                      a_pred: np.ndarray, x_pred: np.ndarray) -> None:
+    """Bifurkační diagram logistické mapy, predikce sítě a overlay."""
+    fig = make_subplots(
+        rows=1, cols=3,
+        subplot_titles=(
+            'Bifurkační diagram',
+            'Predikce neuronové sítě',
+            'Overlay: skutečný + predikovaný',
+        ),
+        horizontal_spacing=0.08,
+    )
+
+    fig.add_trace(go.Scattergl(
+        x=a_bif, y=x_bif, mode='markers',
+        marker=dict(size=1, color='black', opacity=0.4),
+        showlegend=False,
+    ), row=1, col=1)
+
+    fig.add_trace(go.Scattergl(
+        x=a_pred, y=x_pred, mode='markers',
+        marker=dict(size=1.5, color='black', opacity=0.4),
+        showlegend=False,
+    ), row=1, col=2)
+
+    fig.add_trace(go.Scattergl(
+        x=a_bif, y=x_bif, mode='markers',
+        marker=dict(size=0.8, color='black', opacity=0.3),
+        name='Skutečný',
+    ), row=1, col=3)
+    fig.add_trace(go.Scattergl(
+        x=a_pred, y=x_pred, mode='markers',
+        marker=dict(size=2, color='red', opacity=0.6),
+        name='Predikovaný',
+    ), row=1, col=3)
+
+    for col in range(1, 4):
+        fig.update_xaxes(title_text='Parametr a', range=[0, 4.0], row=1, col=col)
+        fig.update_yaxes(title_text='x' if col == 1 else '', range=[0, 1.0], row=1, col=col)
+
+    fig.update_layout(
+        title='Logistická mapa – bifurkační diagram a predikce neuronové sítě',
+        width=1400,
+        height=550,
+    )
+    fig.show()
+
+
 def plot_cartpole(rewards: list, demo_states: list):
     """Animace DQN agenta na CartPole-v1 – vozík s tyčí v každém kroku demo epizody.
 
