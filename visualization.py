@@ -668,3 +668,67 @@ def plot_cartpole(rewards: list, demo_states: list):
     )
 
     fig.show()
+
+
+def plot_double_pendulum(x1: np.ndarray, y1: np.ndarray,
+                         x2: np.ndarray, y2: np.ndarray) -> None:
+    """Animace dvojitého kyvadla se stopou druhé hmotnosti."""
+    frames = []
+    for i in range(len(x1)):
+        frames.append(go.Frame(
+            data=[
+                go.Scatter(
+                    x=[0, x1[i], x2[i]],
+                    y=[0, y1[i], y2[i]],
+                    mode='lines+markers',
+                    line=dict(color='#444', width=2),
+                    marker=dict(size=[6, 14, 14], color=['black', '#e74c3c', '#3498db']),
+                    name='Kyvadlo',
+                ),
+                go.Scatter(
+                    x=x2[:i + 1],
+                    y=y2[:i + 1],
+                    mode='lines',
+                    line=dict(color='#3498db', width=1, dash='dot'),
+                    name='Stopa m2',
+                ),
+            ],
+            name=str(i),
+        ))
+
+    fig = go.Figure(
+        data=[
+            go.Scatter(
+                x=[0, x1[0], x2[0]],
+                y=[0, y1[0], y2[0]],
+                mode='lines+markers',
+                line=dict(color='#444', width=2),
+                marker=dict(size=[6, 14, 14], color=['black', '#e74c3c', '#3498db']),
+                name='Kyvadlo',
+            ),
+            go.Scatter(
+                x=[x2[0]],
+                y=[y2[0]],
+                mode='lines',
+                line=dict(color='#3498db', width=1, dash='dot'),
+                name='Stopa m2',
+            ),
+        ],
+        layout=go.Layout(
+            title='Dvojité kyvadlo — chaotický pohyb',
+            xaxis=dict(range=[-2.5, 2.5], zeroline=True, title='x [m]'),
+            yaxis=dict(range=[-2.5, 2.5], zeroline=True, scaleanchor='x', title='y [m]'),
+            updatemenus=[dict(
+                type='buttons',
+                showactive=False,
+                buttons=[
+                    dict(label='Přehrát', method='animate',
+                         args=[None, dict(frame=dict(duration=50, redraw=True), fromcurrent=True)]),
+                    dict(label='Pauza', method='animate',
+                         args=[[None], dict(frame=dict(duration=0, redraw=False), mode='immediate')]),
+                ],
+            )],
+        ),
+        frames=frames,
+    )
+    fig.show()
