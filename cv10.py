@@ -103,7 +103,6 @@ model.fit(X_scaled, y_train)
 print("Trénink dokončen.")
 
 # Predikce bifurkačního diagramu neuronovou sítí
-# Méně hodnot 'a' (400) a vzorků (80) než u referenčního diagramu — inference je pomalejší
 a_pred_vals = np.linspace(0, 4.0, 400)
 print("Generuji predikovaný bifurkační diagram...")
 a_pred, x_pred = predict_bifurcation(model, scaler, a_pred_vals, n_warmup=300, n_samples=80)
